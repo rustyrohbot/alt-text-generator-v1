@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alt Text Generator</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="font-sans max-w-3xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">Alt Text Generator - {{.Mode}} Mode</h1>
+
+    <div class="mb-8 bg-blue-50 rounded-lg border-l-4 border-blue-500 p-4">
+        <h3 class="text-lg font-semibold mb-2">Instructions</h3>
+        <p class="mb-2">This tool uses {{if eq .Mode "openai"}}OpenAI's GPT{{else}}Anthropic's Claude{{end}} to generate alt text descriptions for images.</p>
+        <p class="mb-2">Maximum image size: 5MB</p>
+        <p>Supported formats: JPG, PNG, GIF</p>
+    </div>
+
+    {{if .APIKeyMissing}}
+    <div class="bg-gray-100 p-6 rounded-lg mb-8">
+        <h2 class="text-xl font-bold mb-4">Enter API Key</h2>
+        <p class="mb-4">Please enter your {{if eq .Mode "openai"}}OpenAI{{else}}Anthropic{{end}} API key to continue:</p>
+        <form action="/saveApiKey" method="POST">
+            <input type="hidden" name="mode" value="{{.Mode}}">
+            <input 
+                type="text" 
+                name="apiKey" 
+                placeholder="Enter your API key" 
+                required
+                class="w-full p-2 border border-gray-300 rounded-md mb-4"
+            >
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save API Key</button>
+        </form>
+        <p class="mt-4 text-sm text-gray-600">
+            {{if eq .Mode "openai"}}
+            Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" class="text-blue-600 hover:underline">OpenAI's platform</a>
+            {{else}}
+            Get your API key from <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-blue-600 hover:underline">Anthropic's console</a>
+            {{end}}
+        </p>
+    </div>
+    {{else}}
+    <div class="mt-8">
+        <h2 class="text-xl font-bold mb-4">Upload Image</h2>
+        <form hx-post="/upload" hx-encoding="multipart/form-data">
+            <input 
+                type="file" 
+                name="image" 
+                accept="image/*" 
+                required
+                class="block w-full mb-4"
+            >
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Generate Alt Text</button>
+        </form>
+    </div>
+    {{end}}
+
+    <div id="alt-text"></div>
+
+    <script>
+        document.querySelector('input[type="file"]')?.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.size > 5 * 1024 * 1024) {
+                alert('File size exceeds 5MB limit. Please choose a smaller image.');
+                this.value = '';
+            }
+        });
+    </script>
+</body>
+</html>
