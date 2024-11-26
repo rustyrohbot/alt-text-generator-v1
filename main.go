@@ -21,7 +21,10 @@ const (
 	claudeAPIURL  = "https://api.anthropic.com/v1/messages"
 )
 
-var tmpl = template.Must(template.ParseFiles("template.html"))
+type TemplateData struct {
+	Mode          string
+	APIKeyMissing bool
+}
 
 // ChatGPTResponse represents the response from OpenAI API
 type ChatGPTResponse struct {
@@ -38,6 +41,8 @@ type ClaudeResponse struct {
 	} `json:"content"`
 }
 
+var tmpl = template.Must(template.ParseFiles("template.html"))
+
 func main() {
 	// Define flags for selecting which API to use
 	useOpenAI := flag.Bool("openai", false, "Use OpenAI API")
@@ -47,25 +52,31 @@ func main() {
 	// Load environment variables from .env file
 	log.Println("Loading environment variables from .env file")
 	err := loadEnvFile(".env")
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 	log.Println("Successfully loaded .env file")
 
-	// Set the appropriate API selection function
+	// Set the appropriate API selection function and mode
 	var generateAltTextFunc func(string) (string, error)
+	var mode string
 	if *useOpenAI {
 		generateAltTextFunc = generateAltTextOpenAI
+		mode = "openai"
 	} else if *useAnthropic {
 		generateAltTextFunc = generateAltTextClaude
+		mode = "anthropic"
 	} else {
 		log.Fatalf("You must specify either -openai or -anthropic flag.")
 	}
 
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
-		uploadHandler(w, r, generateAltTextFunc)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		homeHandler(w, r, mode)
 	})
+	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+		uploadHandler(w, r, generateAltTextFunc, mode)
+	})
+	http.HandleFunc("/saveApiKey", saveApiKeyHandler)
 
 	fmt.Println("Starting server on :8080...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -73,7 +84,78 @@ func main() {
 	}
 }
 
-// loadEnvFile loads environment variables from a specified file
+func saveApiKeyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	apiKey := r.FormValue("apiKey")
+	mode := r.FormValue("mode")
+
+	if apiKey == "" || mode == "" {
+		http.Error(w, "API key and mode are required", http.StatusBadRequest)
+		return
+	}
+
+	var envKey string
+	switch mode {
+	case "openai":
+		envKey = "OPEN_AI_API_KEY"
+	case "anthropic":
+		envKey = "ANTHROPIC_API_KEY"
+	default:
+		http.Error(w, "Invalid mode", http.StatusBadRequest)
+		return
+	}
+
+	// Create or append to .env file
+	f, err := os.OpenFile(".env", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		http.Error(w, "Failed to open .env file", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	// Check if the key already exists in the file
+	if err := loadEnvFile(".env"); err == nil {
+		existingKey := os.Getenv(envKey)
+		if existingKey != "" {
+			// Key exists, update it instead of appending
+			updateEnvFile(".env", envKey, apiKey)
+		} else {
+			// Key doesn't exist, append it
+			if _, err := f.WriteString(fmt.Sprintf("%s=%s\n", envKey, apiKey)); err != nil {
+				http.Error(w, "Failed to write to .env file", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
+	// Set the environment variable for immediate use
+	os.Setenv(envKey, apiKey)
+
+	// Redirect back to home page
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func updateEnvFile(filename, key, newValue string) error {
+	input, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(string(input), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, key+"=") {
+			lines[i] = fmt.Sprintf("%s=%s", key, newValue)
+			break
+		}
+	}
+	output := strings.Join(lines, "\n")
+	return ioutil.WriteFile(filename, []byte(output), 0644)
+}
+
 func loadEnvFile(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -117,19 +199,46 @@ func loadEnvFile(filename string) error {
 	return nil
 }
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
+func homeHandler(w http.ResponseWriter, r *http.Request, mode string) {
 	log.Println("Serving home page")
-	if err := tmpl.Execute(w, nil); err != nil {
+
+	// Check if API key exists
+	var apiKey string
+	if mode == "openai" {
+		apiKey = os.Getenv("OPEN_AI_API_KEY")
+	} else {
+		apiKey = os.Getenv("ANTHROPIC_API_KEY")
+	}
+
+	data := TemplateData{
+		Mode:          mode,
+		APIKeyMissing: apiKey == "",
+	}
+
+	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("Error rendering template: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func uploadHandler(w http.ResponseWriter, r *http.Request, generateAltTextFunc func(string) (string, error)) {
+func uploadHandler(w http.ResponseWriter, r *http.Request, generateAltTextFunc func(string) (string, error), mode string) {
 	log.Println("Received upload request")
 	if r.Method != http.MethodPost {
 		log.Println("Invalid request method. Expected POST.")
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Verify API key exists before processing upload
+	var apiKey string
+	if mode == "openai" {
+		apiKey = os.Getenv("OPEN_AI_API_KEY")
+	} else {
+		apiKey = os.Getenv("ANTHROPIC_API_KEY")
+	}
+
+	if apiKey == "" {
+		http.Error(w, "API key not configured", http.StatusUnauthorized)
 		return
 	}
 
@@ -179,6 +288,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request, generateAltTextFunc f
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(w, "<div id='alt-text'>Generated Alt Text: %s</div>", altText)
 	fmt.Fprintf(w, "<button hx-get='/'>Upload New Image</button>")
+}
+
+func hasMultipartPrefix(contentType string) bool {
+	return len(contentType) >= 19 && contentType[:19] == "multipart/form-data"
 }
 
 func generateAltTextOpenAI(encodedImage string) (string, error) {
@@ -276,9 +389,9 @@ func generateAltTextClaude(encodedImage string) (string, error) {
 					{
 						"type": "image",
 						"source": map[string]interface{}{
-							"type": "base64",
+							"type":       "base64",
 							"media_type": http.DetectContentType(imageData),
-							"data": encodedImage,
+							"data":       encodedImage,
 						},
 					},
 				},
@@ -346,8 +459,4 @@ func generateAltTextClaude(encodedImage string) (string, error) {
 	}
 	log.Println("No response from Claude")
 	return "", fmt.Errorf("No response from Claude")
-}
-
-func hasMultipartPrefix(contentType string) bool {
-	return len(contentType) >= 19 && contentType[:19] == "multipart/form-data"
 }
