@@ -43,29 +43,18 @@
     {{else}}
     <div class="mt-8">
         <h2 class="text-xl font-bold mb-4">Upload Image</h2>
-        <form hx-post="/upload" hx-encoding="multipart/form-data">
+        <form id="uploadForm" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#result">
             <input 
                 type="file" 
                 name="image" 
                 accept="image/*" 
                 required
-                class="block w-full mb-4"
+                class="block w-full mb-4 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             >
             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Generate Alt Text</button>
         </form>
+        <div id="result" class="mt-4"></div>
     </div>
     {{end}}
-
-    <div id="alt-text"></div>
-
-    <script>
-        document.querySelector('input[type="file"]')?.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file && file.size > 5 * 1024 * 1024) {
-                alert('File size exceeds 5MB limit. Please choose a smaller image.');
-                this.value = '';
-            }
-        });
-    </script>
 </body>
 </html>
