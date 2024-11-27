@@ -46,9 +46,15 @@ while getopts "m:dh" opt; do
     esac
 done
 
-# Verify Go installation
+# Verify required tools are installed
 if ! command -v go &> /dev/null; then
     echo -e "${RED}Error: Go is not installed${NC}"
+    exit 1
+fi
+
+if ! command -v templ &> /dev/null; then
+    echo -e "${RED}Error: templ is not installed${NC}"
+    echo -e "${BLUE}Install with: go install github.com/a-h/templ/cmd/templ@latest${NC}"
     exit 1
 fi
 
@@ -68,6 +74,10 @@ BUILD_FLAGS=""
 if [ "$DEBUG" = false ]; then
     BUILD_FLAGS="-ldflags=-w -ldflags=-s"
 fi
+
+# Generate templ files
+echo -e "${BLUE}Generating templ files...${NC}"
+templ generate
 
 echo -e "${BLUE}Running go mod tidy...${NC}"
 go mod tidy

@@ -1,0 +1,54 @@
+package components
+
+templ Instructions(mode string) {
+    <div class="mb-8 bg-blue-50 rounded-lg border-l-4 border-blue-500 p-4">
+        <h3 class="text-lg font-semibold mb-2">Instructions</h3>
+        <p class="mb-2">
+            if mode == "openai" {
+                This tool uses OpenAI's GPT to generate alt text descriptions for images.
+            } else {
+                This tool uses Anthropic's Claude to generate alt text descriptions for images.
+            }
+        </p>
+        <p class="mb-2">Maximum image size: 5MB</p>
+        <p>Supported formats: JPG, PNG, GIF</p>
+    </div>
+}
+
+templ ApiKeyForm(mode string) {
+    <div class="bg-gray-100 p-6 rounded-lg mb-8">
+        <h2 class="text-xl font-bold mb-4">Enter API Key</h2>
+        <p class="mb-4">Please enter your { mode } API key to continue:</p>
+        <form action="/saveApiKey" method="POST">
+            <input type="hidden" name="mode" value={ mode }/>
+            <input 
+                type="text" 
+                name="apiKey" 
+                placeholder="Enter your API key" 
+                required
+                class="w-full p-2 border border-gray-300 rounded-md mb-4"
+            />
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save API Key</button>
+        </form>
+        <p class="mt-4 text-sm text-gray-600">
+            if mode == "openai" {
+                Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" class="text-blue-600 hover:underline">OpenAI's platform</a>
+            } else {
+                Get your API key from <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-blue-600 hover:underline">Anthropic's console</a>
+            }
+        </p>
+    </div>
+}
+
+templ Home(mode string, apiKeyMissing bool) {
+    @Layout("Alt Text Generator") {
+        <h1 class="text-3xl font-bold mb-6">Alt Text Generator - { mode } Mode</h1>
+        @Instructions(mode)
+        
+        if apiKeyMissing {
+            @ApiKeyForm(mode)
+        } else {
+            @UploadForm()
+        }
+    }
+}

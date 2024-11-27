@@ -1,0 +1,46 @@
+package components
+
+templ UploadForm() {
+    <div class="mt-8">
+        <h2 class="text-xl font-bold mb-4">Upload Image</h2>
+        <form id="uploadForm" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#result">
+            <input 
+                type="file" 
+                name="image" 
+                accept="image/*" 
+                required
+                class="block w-full mb-4 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Generate Alt Text</button>
+        </form>
+        <div id="result" class="mt-4"></div>
+    </div>
+}
+
+templ AltTextResults(options []string) {
+    <div class="bg-green-50 border border-green-400 text-green-700 px-4 py-3 rounded-lg">
+        <h3 class="font-bold mb-4">Generated Alt Text Options:</h3>
+        <div class="space-y-4">
+            for _, option := range options {
+                <div class="bg-white p-3 rounded border border-green-200">
+                    <p>{ option }</p>
+                </div>
+            }
+        </div>
+        <button onclick="location.reload()" class="mt-4 bg-green-100 text-green-700 px-4 py-2 rounded hover:bg-green-200">
+            Generate More Options
+        </button>
+    </div>
+}
+
+templ UploadError(message string) {
+    <div class="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+        <p class="font-bold mb-2">Error: { message }</p>
+        <button 
+            onclick="document.getElementById('uploadForm').reset(); this.closest('.bg-red-50').remove()"
+            class="bg-red-100 text-red-700 px-4 py-2 rounded hover:bg-red-200"
+        >
+            Try Again
+        </button>
+    </div>
+}

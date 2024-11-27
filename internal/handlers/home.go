@@ -1,17 +1,12 @@
 package handlers
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"text/template"
 
-	"alt-text-generator/internal/types"
+	"alt-text-generator/internal/components"
 )
-
-var tmpl = template.Must(template.ParseFiles(filepath.Join("web", "template.html")))
 
 func HomeHandler(w http.ResponseWriter, r *http.Request, mode string) {
 	log.Println("Serving home page")
@@ -24,27 +19,9 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, mode string) {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
 
-	data := types.TemplateData{
-		Mode:          mode,
-		APIKeyMissing: apiKey == "",
-	}
-
-	if err := tmpl.Execute(w, data); err != nil {
+	component := components.Home(mode, apiKey == "")
+	if err := component.Render(r.Context(), w); err != nil {
 		log.Printf("Error rendering template: %v", err)
-		renderHomeError(w, err.Error())
-		return
+		http.Error(w, "Error rendering page", http.StatusInternalServerError)
 	}
-}
-
-func renderHomeError(w http.ResponseWriter, message string) {
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintf(w, `
-		<div class="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
-			<p class="font-bold">Error loading page: %s</p>
-			<button onclick="window.location.reload()" class="mt-2 bg-red-100 text-red-700 px-4 py-2 rounded hover:bg-red-200">
-				Reload Page
-			</button>
-		</div>
-	`, message)
 }
