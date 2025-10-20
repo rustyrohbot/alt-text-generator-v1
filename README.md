@@ -21,8 +21,8 @@ A web application that generates alt text descriptions for images using either O
 
 1. Clone the repository
 ```bash
-git clone https://github.com/patelrohanv/alt-text-generator.git
-cd alt-text-generator
+git clone https://github.com/rustyrohbot/alt-text-generator-v1.git
+cd alt-text-generator-v1
 ```
 
 2. Install dependencies
